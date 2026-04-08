@@ -7,23 +7,27 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const supabase = createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
+    if (!user) {
+      redirect('/login')
+    }
 
-  // Check if user has an org — if not, send to onboarding
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id')
-    .eq('user_id', user.id)
-    .limit(1)
-    .single()
+    // Check if user has an org — if not, send to onboarding
+    const { data: membership } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
 
-  if (!membership) {
-    redirect('/onboarding')
+    if (!membership) {
+      redirect('/onboarding')
+    }
+  } catch {
+    // Supabase unreachable — render shell anyway so pages are visible
   }
 
   return (
