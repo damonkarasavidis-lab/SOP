@@ -1,7 +1,10 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { calculateRetentionDeadlines } from '@/lib/sop/deadlines'
+import type { Database } from '@/types/database'
 
 export const metadata = { title: 'Retentions — ClaimTrack' }
+
+type Project = Database['public']['Tables']['projects']['Row']
 
 export default async function RetentionsPage() {
   const supabase = createServerClient()
@@ -14,11 +17,21 @@ export default async function RetentionsPage() {
     .limit(1)
     .single()
 
-  const { data: retentions } = await supabase
-    .from('retentions')
-    .select('*, projects(name, contract_value, retention_percentage, practical_completion_date, defects_liability_period_days)')
-    .eq('org_id', membership!.org_id)
-    .order('created_at', { ascending: false })
+  const [{ data: retentions }, { data: projects }] = await Promise.all([
+    supabase
+      .from('retentions')
+      .select('*')
+      .eq('org_id', membership!.org_id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('projects')
+      .select('id, name, contract_value, retention_percentage, practical_completion_date, defects_liability_period_days')
+      .eq('org_id', membership!.org_id),
+  ])
+
+  const projectMap = Object.fromEntries(
+    (projects ?? []).map((p) => [p.id, p as Pick<Project, 'id' | 'name' | 'contract_value' | 'retention_percentage' | 'practical_completion_date' | 'defects_liability_period_days'>])
+  )
 
   const totalHeld = retentions?.reduce((sum, r) => sum + Number(r.total_retention_held), 0) ?? 0
 
@@ -38,13 +51,8 @@ export default async function RetentionsPage() {
       ) : (
         <div className="grid gap-4">
           {retentions.map((retention) => {
-            const project = retention.projects as {
-              name: string
-              contract_value: number
-              retention_percentage: number
-              practical_completion_date: string | null
-              defects_liability_period_days: number
-            }
+            const project = projectMap[retention.project_id]
+            if (!project) return null
 
             const deadlines = calculateRetentionDeadlines(
               Number(project.contract_value),

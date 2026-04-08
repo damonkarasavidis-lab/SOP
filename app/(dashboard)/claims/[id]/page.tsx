@@ -15,13 +15,19 @@ export default async function ClaimDetailPage({
 
   const { data: claim } = await supabase
     .from('payment_claims')
-    .select('*, projects(name, state, head_contractor)')
+    .select('*')
     .eq('id', params.id)
     .single()
 
   if (!claim) notFound()
 
-  const project = claim.projects as { name: string; state: string; head_contractor: string }
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name, state, head_contractor')
+    .eq('id', claim.project_id)
+    .single()
+
+  if (!project) notFound()
 
   const deadlines = calculateClaimDeadlines(
     new Date(claim.reference_date),

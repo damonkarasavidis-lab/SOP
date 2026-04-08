@@ -8,12 +8,16 @@ export default async function SettingsPage() {
 
   const { data: membership } = await supabase
     .from('org_members')
-    .select('org_id, role, organisations(id, name, abn, state)')
+    .select('org_id, role')
     .eq('user_id', user!.id)
     .limit(1)
     .single()
 
-  const org = membership?.organisations as { id: string; name: string; abn: string | null; state: string } | null
+  const { data: org } = await supabase
+    .from('organisations')
+    .select('id, name, abn, state')
+    .eq('id', membership!.org_id)
+    .single()
 
   return (
     <div>

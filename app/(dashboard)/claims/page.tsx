@@ -14,12 +14,19 @@ export default async function ClaimsPage() {
     .limit(1)
     .single()
 
-  const { data: claims } = await supabase
-    .from('payment_claims')
-    .select('*, projects(name, state)')
-    .eq('org_id', membership!.org_id)
-    .order('response_due_date', { ascending: true })
+  const [{ data: claims }, { data: projects }] = await Promise.all([
+    supabase
+      .from('payment_claims')
+      .select('*')
+      .eq('org_id', membership!.org_id)
+      .order('response_due_date', { ascending: true }),
+    supabase
+      .from('projects')
+      .select('id, name')
+      .eq('org_id', membership!.org_id),
+  ])
 
+  const projectMap = Object.fromEntries((projects ?? []).map((p) => [p.id, p.name]))
   const today = new Date().toISOString().split('T')[0]
 
   return (
@@ -61,7 +68,7 @@ export default async function ClaimsPage() {
                     <p className="font-medium text-slate-900">Claim #{claim.claim_number}</p>
                   </div>
                   <p className="text-sm text-slate-500 ml-4 mt-0.5">
-                    {(claim.projects as { name: string })?.name} · Response due {claim.response_due_date}
+                    {projectMap[claim.project_id] ?? '—'} · Response due {claim.response_due_date}
                   </p>
                 </div>
                 <div className="text-right">

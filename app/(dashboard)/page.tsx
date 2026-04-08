@@ -7,15 +7,18 @@ export default async function DashboardPage() {
   const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch org for this user
   const { data: membership } = await supabase
     .from('org_members')
-    .select('org_id, organisations(id, name, state)')
+    .select('org_id')
     .eq('user_id', user!.id)
     .limit(1)
     .single()
 
-  const org = membership?.organisations as { id: string; name: string; state: string } | null
+  const { data: org } = await supabase
+    .from('organisations')
+    .select('id, name, state')
+    .eq('id', membership!.org_id)
+    .single()
 
   return (
     <div>
