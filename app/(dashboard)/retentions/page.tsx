@@ -1,10 +1,8 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { calculateRetentionDeadlines } from '@/lib/sop/deadlines'
-import type { Database } from '@/types/database'
+import { RetentionCard } from '@/components/retentions/RetentionCard'
 
 export const metadata = { title: 'Retentions — ClaimTrack' }
-
-type Project = Database['public']['Tables']['projects']['Row']
 
 export default async function RetentionsPage() {
   const supabase = createServerClient()
@@ -29,10 +27,7 @@ export default async function RetentionsPage() {
       .eq('org_id', membership!.org_id),
   ])
 
-  const projectMap = Object.fromEntries(
-    (projects ?? []).map((p) => [p.id, p as Pick<Project, 'id' | 'name' | 'contract_value' | 'retention_percentage' | 'practical_completion_date' | 'defects_liability_period_days'>])
-  )
-
+  const projectMap = Object.fromEntries((projects ?? []).map((p) => [p.id, p]))
   const totalHeld = retentions?.reduce((sum, r) => sum + Number(r.total_retention_held), 0) ?? 0
 
   return (
@@ -40,7 +35,6 @@ export default async function RetentionsPage() {
       <h1 className="text-2xl font-bold text-slate-900 mb-2">Retention ledger</h1>
       <p className="text-sm text-slate-500 mb-6">Track your retention balances across all projects.</p>
 
-      {/* Summary */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
         <p className="text-xs text-slate-500">Total retention held</p>
         <p className="text-3xl font-bold text-slate-900 mt-1">${totalHeld.toLocaleString('en-AU')}</p>
@@ -62,33 +56,22 @@ export default async function RetentionsPage() {
             )
 
             return (
-              <div key={retention.id} className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-start justify-between mb-4">
-                  <h2 className="font-semibold text-slate-900">{project.name}</h2>
-                  <span className="text-lg font-bold text-slate-900">
-                    ${Number(retention.total_retention_held).toLocaleString('en-AU')}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <RetentionRelease
-                    label="PC release (50%)"
-                    amount={deadlines.pcReleaseAmount}
-                    date={deadlines.pcReleaseDate?.toISOString().split('T')[0] ?? null}
-                    daysUntil={deadlines.pcDaysUntilRelease}
-                    isOverdue={deadlines.pcIsOverdue}
-                    status={retention.pc_release_status}
-                  />
-                  <RetentionRelease
-                    label="DLP release (50%)"
-                    amount={deadlines.dlpReleaseAmount}
-                    date={deadlines.dlpReleaseDate?.toISOString().split('T')[0] ?? null}
-                    daysUntil={deadlines.dlpDaysUntilRelease}
-                    isOverdue={deadlines.dlpIsOverdue}
-                    status={retention.dlp_release_status}
-                  />
-                </div>
-              </div>
+              <RetentionCard
+                key={retention.id}
+                retentionId={retention.id}
+                projectName={project.name}
+                totalHeld={Number(retention.total_retention_held)}
+                pcReleaseDate={deadlines.pcReleaseDate?.toISOString().split('T')[0] ?? null}
+                pcReleaseAmount={deadlines.pcReleaseAmount}
+                pcDaysUntil={deadlines.pcDaysUntilRelease}
+                pcIsOverdue={deadlines.pcIsOverdue}
+                pcStatus={retention.pc_release_status}
+                dlpReleaseDate={deadlines.dlpReleaseDate?.toISOString().split('T')[0] ?? null}
+                dlpReleaseAmount={deadlines.dlpReleaseAmount}
+                dlpDaysUntil={deadlines.dlpDaysUntilRelease}
+                dlpIsOverdue={deadlines.dlpIsOverdue}
+                dlpStatus={retention.dlp_release_status}
+              />
             )
           })}
         </div>
@@ -97,45 +80,6 @@ export default async function RetentionsPage() {
       <p className="mt-6 text-xs text-slate-400">
         Retention release dates are indicative. Always confirm with a legal professional.
       </p>
-    </div>
-  )
-}
-
-function RetentionRelease({
-  label,
-  amount,
-  date,
-  daysUntil,
-  isOverdue,
-  status,
-}: {
-  label: string
-  amount: number
-  date: string | null
-  daysUntil: number | null
-  isOverdue: boolean
-  status: string
-}) {
-  const urgency = status === 'released' ? 'green' : isOverdue ? 'red' : (daysUntil != null && daysUntil <= 30) ? 'amber' : 'green'
-
-  return (
-    <div className="bg-slate-50 rounded-lg p-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-base font-semibold text-slate-900 mt-0.5">${amount.toLocaleString('en-AU')}</p>
-      {date ? (
-        <div className="flex items-center gap-2 mt-1">
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-            urgency === 'red' ? 'bg-red-100 text-red-700' :
-            urgency === 'amber' ? 'bg-amber-100 text-amber-700' :
-            'bg-green-100 text-green-700'
-          }`}>
-            {status === 'released' ? 'Released' : isOverdue ? 'Overdue' : `${daysUntil}d`}
-          </span>
-          <span className="text-xs text-slate-500">{date}</span>
-        </div>
-      ) : (
-        <p className="text-xs text-slate-400 mt-1">No PC date set</p>
-      )}
     </div>
   )
 }

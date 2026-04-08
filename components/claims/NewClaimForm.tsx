@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useTransition } from 'react'
 import { addBusinessDays } from '@/lib/sop/deadlines'
 import { STATE_RULES, type AustralianState } from '@/lib/sop/states'
+import { createClaim } from '@/app/actions/claims'
 
 interface Project {
   id: string
@@ -15,21 +14,18 @@ interface Project {
 export function NewClaimForm({
   projects,
   defaultProjectId,
-  orgId,
+  orgId: _orgId,
 }: {
   projects: Project[]
   defaultProjectId?: string
   orgId: string
 }) {
-  const router = useRouter()
   const [projectId, setProjectId] = useState(defaultProjectId ?? '')
   const [referenceDate, setReferenceDate] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [pending, startTransition] = useTransition()
 
   const selectedProject = projects.find((p) => p.id === projectId)
 
-  // Show computed deadlines live as user fills in date + project
   const previewDeadlines =
     selectedProject && referenceDate
       ? (() => {
@@ -46,47 +42,17 @@ export function NewClaimForm({
         })()
       : null
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    if (!previewDeadlines) {
-      setError('Select a project and reference date to calculate deadlines.')
-      setLoading(false)
-      return
-    }
-
-    const form = new FormData(e.currentTarget)
-    const supabase = createClient()
-
-    const { error: insertError } = await supabase.from('payment_claims').insert({
-      project_id: projectId,
-      org_id: orgId,
-      claim_number: form.get('claim_number') as string,
-      reference_date: referenceDate,
-      amount_claimed: parseFloat(form.get('amount_claimed') as string),
-      response_due_date: previewDeadlines.responseDate,
-      adjudication_window_end: previewDeadlines.adjEnd,
-      notes: (form.get('notes') as string) || null,
-    })
-
-    if (insertError) {
-      setError(insertError.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/claims')
-    router.refresh()
+    const formData = new FormData(e.currentTarget)
+    // Ensure controlled fields are in formData
+    formData.set('project_id', projectId)
+    formData.set('reference_date', referenceDate)
+    startTransition(() => createClaim(formData))
   }
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
-      {error && (
-        <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>
-      )}
-
       {/* Project selector */}
       <div>
         <label htmlFor="project_id" className="block text-sm font-medium text-slate-700 mb-1">
@@ -102,9 +68,7 @@ export function NewClaimForm({
         >
           <option value="">Select project…</option>
           {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} ({p.state})
-            </option>
+            <option key={p.id} value={p.id}>{p.name} ({p.state})</option>
           ))}
         </select>
       </div>
@@ -115,11 +79,7 @@ export function NewClaimForm({
             Claim number <span className="text-red-500">*</span>
           </label>
           <input
-            id="claim_number"
-            name="claim_number"
-            type="text"
-            required
-            placeholder="PC-001"
+            id="claim_number" name="claim_number" type="text" required placeholder="PC-001"
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
@@ -128,10 +88,7 @@ export function NewClaimForm({
             Reference date <span className="text-red-500">*</span>
           </label>
           <input
-            id="reference_date"
-            name="reference_date"
-            type="date"
-            required
+            id="reference_date" name="reference_date" type="date" required
             value={referenceDate}
             onChange={(e) => setReferenceDate(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -144,13 +101,7 @@ export function NewClaimForm({
           Amount claimed ($) <span className="text-red-500">*</span>
         </label>
         <input
-          id="amount_claimed"
-          name="amount_claimed"
-          type="number"
-          required
-          min="0"
-          step="0.01"
-          placeholder="125000.00"
+          id="amount_claimed" name="amount_claimed" type="number" required min="0" step="0.01" placeholder="125000.00"
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
@@ -177,13 +128,9 @@ export function NewClaimForm({
       )}
 
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">
-          Notes
-        </label>
+        <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
         <textarea
-          id="notes"
-          name="notes"
-          rows={3}
+          id="notes" name="notes" rows={3}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
           placeholder="Brief description of works claimed…"
         />
@@ -191,18 +138,11 @@ export function NewClaimForm({
 
       <div className="flex gap-3 pt-2">
         <button
-          type="button"
-          onClick={() => router.back()}
-          className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
           type="submit"
-          disabled={loading}
+          disabled={pending || !previewDeadlines}
           className="flex-1 py-2.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
         >
-          {loading ? 'Saving…' : 'Log claim'}
+          {pending ? 'Saving…' : 'Log claim'}
         </button>
       </div>
 

@@ -1,68 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { AUSTRALIAN_STATES } from '@/lib/sop/states'
+import { createProject } from '@/app/actions/projects'
 
 export function NewProjectForm() {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [pending, startTransition] = useTransition()
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    const form = new FormData(e.currentTarget)
-    const supabase = createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Not authenticated'); setLoading(false); return }
-
-    const { data: membership } = await supabase
-      .from('org_members')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single()
-
-    if (!membership) { setError('No organisation found'); setLoading(false); return }
-
-    const { data: project, error: insertError } = await supabase
-      .from('projects')
-      .insert({
-        org_id: membership.org_id,
-        name: form.get('name') as string,
-        head_contractor: form.get('head_contractor') as string,
-        contract_value: parseFloat(form.get('contract_value') as string),
-        retention_percentage: parseFloat(form.get('retention_percentage') as string) || 5,
-        state: form.get('state') as string,
-        contract_start_date: form.get('contract_start_date') as string,
-        practical_completion_date: (form.get('practical_completion_date') as string) || null,
-        defects_liability_period_days: parseInt(form.get('defects_liability_period_days') as string) || 365,
-        notes: (form.get('notes') as string) || null,
-      })
-      .select('id')
-      .single()
-
-    if (insertError || !project) {
-      setError(insertError?.message ?? 'Failed to create project')
-      setLoading(false)
-      return
-    }
-
-    router.push(`/projects/${project.id}`)
-    router.refresh()
+    const formData = new FormData(e.currentTarget)
+    startTransition(() => createProject(formData))
   }
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
-      {error && (
-        <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>
-      )}
-
       <Field label="Project name" name="name" required placeholder="City Hall Fit-out" />
       <Field label="Head contractor" name="head_contractor" required placeholder="BuildCo Pty Ltd" />
 
@@ -103,9 +57,7 @@ export function NewProjectForm() {
       />
 
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">
-          Notes
-        </label>
+        <label htmlFor="notes" className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
         <textarea
           id="notes"
           name="notes"
@@ -125,10 +77,10 @@ export function NewProjectForm() {
         </button>
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending}
           className="flex-1 py-2.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
         >
-          {loading ? 'Saving…' : 'Add project'}
+          {pending ? 'Saving…' : 'Add project'}
         </button>
       </div>
     </form>
@@ -136,25 +88,10 @@ export function NewProjectForm() {
 }
 
 function Field({
-  label,
-  name,
-  type = 'text',
-  required,
-  placeholder,
-  defaultValue,
-  min,
-  max,
-  step,
+  label, name, type = 'text', required, placeholder, defaultValue, min, max, step,
 }: {
-  label: string
-  name: string
-  type?: string
-  required?: boolean
-  placeholder?: string
-  defaultValue?: string
-  min?: string
-  max?: string
-  step?: string
+  label: string; name: string; type?: string; required?: boolean
+  placeholder?: string; defaultValue?: string; min?: string; max?: string; step?: string
 }) {
   return (
     <div>
@@ -162,15 +99,9 @@ function Field({
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        min={min}
-        max={max}
-        step={step}
+        id={name} name={name} type={type} required={required}
+        placeholder={placeholder} defaultValue={defaultValue}
+        min={min} max={max} step={step}
         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
       />
     </div>

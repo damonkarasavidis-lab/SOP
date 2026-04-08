@@ -1,5 +1,5 @@
-import { NewClaimForm } from '@/components/claims/NewClaimForm'
 import { createServerClient } from '@/lib/supabase/server'
+import { NewClaimForm } from '@/components/claims/NewClaimForm'
 
 export const metadata = { title: 'Log claim — ClaimTrack' }
 
@@ -23,6 +23,7 @@ export default async function NewClaimPage({
     .select('id, name, state')
     .eq('org_id', membership!.org_id)
     .eq('status', 'active')
+    .order('name')
 
   return (
     <div>
