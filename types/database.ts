@@ -2,9 +2,7 @@
  * Supabase database types for ClaimTrack.
  *
  * To regenerate from your live Supabase project run:
- *   npx supabase gen types typescript --project-id <project-id> > types/database.ts
- *
- * The types below are manually maintained until Week 2 when the schema is stable.
+ *   npx supabase gen types typescript --project-id qzlndajqqneafxnqozzr > types/database.ts
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
@@ -34,6 +32,7 @@ export interface Database {
           state?: string
           created_at?: string
         }
+        Relationships: []
       }
       org_members: {
         Row: {
@@ -57,6 +56,22 @@ export interface Database {
           role?: 'owner' | 'admin' | 'member'
           created_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       projects: {
         Row: {
@@ -104,6 +119,15 @@ export interface Database {
           notes?: string | null
           created_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "projects_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       payment_claims: {
         Row: {
@@ -160,6 +184,22 @@ export interface Database {
           document_path?: string | null
           created_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "payment_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       retentions: {
         Row: {
@@ -204,6 +244,22 @@ export interface Database {
           notes?: string | null
           created_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "retentions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retentions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       notification_log: {
         Row: {
@@ -230,10 +286,20 @@ export interface Database {
           notification_type?: string
           sent_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
     Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }
