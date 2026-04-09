@@ -153,6 +153,45 @@ create index idx_notification_log_entity on notification_log(entity_type, entity
 -- STORAGE BUCKETS
 -- ============================================================
 
--- Create a private bucket for claim documents
--- Run separately or via Supabase dashboard:
--- insert into storage.buckets (id, name, public) values ('claim-documents', 'claim-documents', false);
+-- Private bucket for claim documents.
+-- File path convention: {org_id}/{claim_id}/{filename}
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'claim-documents',
+  'claim-documents',
+  false,
+  10485760,  -- 10 MB per file
+  array['application/pdf','image/jpeg','image/png','image/webp']
+);
+
+-- ============================================================
+-- STORAGE RLS POLICIES
+-- ============================================================
+
+-- Members can upload documents for claims belonging to their org.
+-- Path must start with their org_id.
+create policy "claim_docs_insert_own_org" on storage.objects
+  for insert with check (
+    bucket_id = 'claim-documents'
+    and (storage.foldername(name))[1] in (
+      select org_id::text from org_members where user_id = auth.uid()
+    )
+  );
+
+-- Members can read documents for claims belonging to their org.
+create policy "claim_docs_select_own_org" on storage.objects
+  for select using (
+    bucket_id = 'claim-documents'
+    and (storage.foldername(name))[1] in (
+      select org_id::text from org_members where user_id = auth.uid()
+    )
+  );
+
+-- Members can delete their org's documents.
+create policy "claim_docs_delete_own_org" on storage.objects
+  for delete using (
+    bucket_id = 'claim-documents'
+    and (storage.foldername(name))[1] in (
+      select org_id::text from org_members where user_id = auth.uid()
+    )
+  );
