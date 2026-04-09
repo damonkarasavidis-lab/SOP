@@ -1,16 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export function RegisterForm() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -18,10 +17,10 @@ export function RegisterForm() {
     setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding` },
     })
 
     if (error) {
@@ -30,9 +29,38 @@ export function RegisterForm() {
       return
     }
 
-    // After sign-up, redirect to onboarding to create their org
-    router.push('/onboarding')
-    router.refresh()
+    // If email confirmation is disabled, user has a session immediately
+    if (data.session) {
+      window.location.href = '/onboarding'
+      return
+    }
+
+    // Email confirmation required — show "check your email" state
+    setConfirmed(true)
+    setLoading(false)
+  }
+
+  if (confirmed) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-3">
+        <div className="text-4xl">📬</div>
+        <h2 className="text-lg font-semibold text-slate-900">Check your email</h2>
+        <p className="text-sm text-slate-500">
+          We sent a confirmation link to <strong>{email}</strong>.
+          Click the link in the email to activate your account, then you&apos;ll be taken to set up your organisation.
+        </p>
+        <p className="text-xs text-slate-400">
+          No email? Check your spam folder or{' '}
+          <button
+            onClick={() => { setConfirmed(false); setEmail(''); setPassword('') }}
+            className="text-brand-600 hover:underline"
+          >
+            try again
+          </button>
+          .
+        </p>
+      </div>
+    )
   }
 
   return (
