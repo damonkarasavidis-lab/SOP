@@ -100,9 +100,23 @@ alter table payment_claims enable row level security;
 alter table retentions enable row level security;
 alter table notification_log enable row level security;
 
--- Organisations: members can read their own org
-create policy "organisations_own_org" on organisations
-  for all using (
+-- Organisations: any authenticated user can create a new org (they become owner immediately after)
+create policy "organisations_insert" on organisations
+  for insert with check (auth.uid() is not null);
+
+-- Organisations: members can read/update/delete their own org
+create policy "organisations_select" on organisations
+  for select using (
+    id in (select org_id from org_members where user_id = auth.uid())
+  );
+
+create policy "organisations_update" on organisations
+  for update using (
+    id in (select org_id from org_members where user_id = auth.uid())
+  );
+
+create policy "organisations_delete" on organisations
+  for delete using (
     id in (select org_id from org_members where user_id = auth.uid())
   );
 
