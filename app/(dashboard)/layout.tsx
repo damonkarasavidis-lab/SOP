@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { createServerClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { isRedirectError } from 'next/dist/client/components/redirect'
 
 export default async function DashboardLayout({
   children,
@@ -26,7 +27,9 @@ export default async function DashboardLayout({
     if (!membership) {
       redirect('/onboarding')
     }
-  } catch {
+  } catch (err) {
+    // Re-throw redirect errors so Next.js can handle them
+    if (isRedirectError(err)) throw err
     // Supabase unreachable — render shell anyway so pages are visible
   }
 
