@@ -124,6 +124,10 @@ create policy "organisations_delete" on organisations
 create policy "org_members_own_org" on org_members
   for all using (user_id = auth.uid());
 
+-- Allow insert so a new user can be added as owner of their new org
+create policy "org_members_insert" on org_members
+  for insert with check (auth.uid() is not null);
+
 -- Projects: visible to org members
 create policy "projects_own_org" on projects
   for all using (
