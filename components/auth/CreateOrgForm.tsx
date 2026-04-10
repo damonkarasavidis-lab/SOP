@@ -1,58 +1,21 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useTransition, useState } from 'react'
+import { createOrganisation } from '@/app/actions/onboarding'
 import { AUSTRALIAN_STATES } from '@/lib/sop/states'
 
 export function CreateOrgForm() {
-  const router = useRouter()
-  const [name, setName] = useState('')
-  const [abn, setAbn] = useState('')
-  const [state, setState] = useState('')
+  const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
-    setLoading(true)
-
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('You must be signed in to create an organisation.')
-      setLoading(false)
-      return
-    }
-
-    // Create org
-    const { data: org, error: orgError } = await supabase
-      .from('organisations')
-      .insert({ name, abn: abn || null, state })
-      .select('id')
-      .single()
-
-    if (orgError || !org) {
-      setError(orgError?.message ?? 'Failed to create organisation.')
-      setLoading(false)
-      return
-    }
-
-    // Add current user as owner
-    const { error: memberError } = await supabase
-      .from('org_members')
-      .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
-
-    if (memberError) {
-      setError(memberError.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/dashboard')
-    router.refresh()
+    const formData = new FormData(e.currentTarget)
+    startTransition(async () => {
+      const result = await createOrganisation(formData)
+      if (result?.error) setError(result.error)
+    })
   }
 
   return (
@@ -67,10 +30,9 @@ export function CreateOrgForm() {
         </label>
         <input
           id="org-name"
+          name="name"
           type="text"
           required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           placeholder="Smith Electrical Pty Ltd"
         />
@@ -82,9 +44,8 @@ export function CreateOrgForm() {
         </label>
         <input
           id="abn"
+          name="abn"
           type="text"
-          value={abn}
-          onChange={(e) => setAbn(e.target.value)}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           placeholder="12 345 678 901"
           maxLength={14}
@@ -97,9 +58,9 @@ export function CreateOrgForm() {
         </label>
         <select
           id="state"
+          name="state"
           required
-          value={state}
-          onChange={(e) => setState(e.target.value)}
+          defaultValue=""
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white"
         >
           <option value="">Select state…</option>
@@ -114,10 +75,10 @@ export function CreateOrgForm() {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={isPending}
         className="w-full py-2.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
       >
-        {loading ? 'Setting up…' : 'Create organisation'}
+        {isPending ? 'Setting up…' : 'Create organisation'}
       </button>
     </form>
   )
