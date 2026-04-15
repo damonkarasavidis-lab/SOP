@@ -1,41 +1,45 @@
 'use server'
 
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient as createSupabaseSSR, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 export async function createOrganisation(formData: FormData) {
   const name = formData.get('name') as string
-  const abn = formData.get('abn') as string | null
+  const abn = (formData.get('abn') as string) || null
   const state = formData.get('state') as string
 
   if (!name || !state) {
     return { error: 'Business name and state are required.' }
   }
 
-  const supabase = createServerClient()
+  const cookieStore = cookies()
+  const supabase = createSupabaseSSR(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) { return cookieStore.get(name)?.value },
+        set(name: string, value: string, options: CookieOptions) {
+          try { cookieStore.set({ name, value, ...options }) } catch {}
+        },
+        remove(name: string, options: CookieOptions) {
+          try { cookieStore.set({ name, value: '', ...options }) } catch {}
+        },
+      },
+    }
+  )
+
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'You must be signed in to create an organisation.' }
 
-  if (!user) {
-    return { error: 'You must be signed in to create an organisation.' }
-  }
+  const { error } = await supabase.rpc('create_organisation', {
+    org_name: name,
+    org_abn: abn,
+    org_state: state,
+  })
 
-  const { data: org, error: orgError } = await supabase
-    .from('organisations')
-    .insert({ name, abn: abn || null, state })
-    .select('id')
-    .single()
-
-  if (orgError || !org) {
-    return { error: orgError?.message ?? 'Failed to create organisation.' }
-  }
-
-  const { error: memberError } = await supabase
-    .from('org_members')
-    .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
-
-  if (memberError) {
-    return { error: memberError.message }
-  }
+  if (error) return { error: error.message }
 
   redirect('/dashboard')
 }
